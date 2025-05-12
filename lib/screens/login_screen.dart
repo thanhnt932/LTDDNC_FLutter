@@ -1,8 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/auth_request.dart';
+import '../services/auth_service.dart';
 
-class LoginScreen extends StatelessWidget {
-  final TextEditingController usernameController = TextEditingController();
+class LoginScreen extends StatefulWidget {
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
+  Future<void> _login() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final request = AuthRequest(
+        email: emailController.text,
+        password: passwordController.text,
+      );
+
+      final response = await _authService.authenticate(request);
+      
+      // Lưu token vào SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('access_token', response.accessToken);
+      await prefs.setString('refresh_token', response.refreshToken);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Đăng nhập thành công!")),
+        );
+        // Chuyển đến màn hình chính
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Đăng nhập thất bại: ${e.toString()}")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,17 +69,15 @@ class LoginScreen extends StatelessWidget {
             ),
             SizedBox(height: 30),
 
-            // Ô nhập Username
             TextField(
-              controller: usernameController,
+              controller: emailController,
               decoration: InputDecoration(
-                labelText: 'Tên đăng nhập',
+                labelText: 'Email',
                 border: OutlineInputBorder(),
               ),
             ),
             SizedBox(height: 20),
 
-            // Ô nhập Mật khẩu
             TextField(
               controller: passwordController,
               obscureText: true,
@@ -40,26 +88,13 @@ class LoginScreen extends StatelessWidget {
             ),
             SizedBox(height: 30),
 
-            // Nút đăng nhập
             ElevatedButton(
-              onPressed: () {
-                final username = usernameController.text;
-                final password = passwordController.text;
-
-                // Xử lý đăng nhập
-                if (username == 'admin' && password == '123') {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Đăng nhập thành công!")),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Sai tên đăng nhập hoặc mật khẩu")),
-                  );
-                }
-              },
-              child: Text('Đăng nhập'),
+              onPressed: _isLoading ? null : _login,
+              child: _isLoading
+                  ? CircularProgressIndicator(color: Colors.white)
+                  : Text('Đăng nhập'),
               style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50), // full width button
+                minimumSize: Size(double.infinity, 50),
               ),
             ),
           ],
